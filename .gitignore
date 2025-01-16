@@ -7,7 +7,6 @@ env.bak/
 venv.bak/
 .pdm.toml
 __pypackages__/
-.conda
 
 ### react ###
 .DS_*
