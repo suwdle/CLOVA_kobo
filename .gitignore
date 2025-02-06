@@ -7,6 +7,6 @@ env.bak/
 venv.bak/
 .pdm.toml
 __pypackages__/
-
+__pycache__
 # Environment variables
 .env

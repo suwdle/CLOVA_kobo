@@ -8,13 +8,21 @@ from llama_index.core import SimpleDirectoryReader
 from dotenv import load_dotenv
 import os
 
-import os
-from dotenv import load_dotenv
-from llama_index import SimpleDirectoryReader
-from llama_index.llm_predictor.llama_parse import LlamaParse
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+
+def public_to_vector_db():
+
+    loader = CSVLoader(file_path='./test_data/중소기업지원사업목록_20240331.csv', encoding='cp949')
+    try:
+        data = loader.load()
+    except Exception as e:
+        print(f"Error loading CSV file: {e}")
+        raise
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
+    texts = text_splitter.split_documents(data)
+    embeddings = OpenAIEmbeddings()
+    supporting_db = FAISS.from_documents(texts, embeddings)
+    print('...db build complete...')
+    return supporting_db
 
 def document_to_vector_db(file_path):
     try:
@@ -75,17 +83,4 @@ def document_to_vector_db(file_path):
         return None
 
     
-def public_to_vector_db():
 
-    loader = CSVLoader(file_path='app/test_data/중소기업지원사업목록_20240331.csv', encoding='cp949')
-    try:
-        data = loader.load()
-    except Exception as e:
-        print(f"Error loading CSV file: {e}")
-        raise
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
-    texts = text_splitter.split_documents(data)
-    embeddings = OpenAIEmbeddings()
-    supporting_db = FAISS.from_documents(texts, embeddings)
-    print('...db build complete...')
-    return supporting_db

@@ -21,12 +21,12 @@ if __name__ == "__main__":
     llm = ChatOpenAI(temperature=0.4, model='gpt-4o',openai_api_key= openai_api_key)
     agent_components = initialize_agent_components(llm)
     chat_history = []
-    doc_path = 'c:/Users/USER/Downloads/[삼성전자]분기보고서(2024.05.16).pdf'
-    document_db = document_to_vector_db(doc_path)
+    doc_path = ''
+    document_db = None
     while True:        
         query = input("질문을 입력하세요 (종료하려면 'exit' 입력): ")
         # 텍스트 데이터 벡터화
-        query_vec = vectorizer.transform(query)
+        query_vec = vectorizer.transform([query])
         # 모델을 사용하여 예측
         prediction = model.predict(query_vec)
         print("Prediction:", prediction)    
