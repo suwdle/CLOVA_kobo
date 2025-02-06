@@ -8,6 +8,7 @@ from build_vector_db import document_to_vector_db, public_to_vector_db
 from ExtractLink import ExtractLink
 from workflow import run_workflow, extract_final_response
 from flask_cors import CORS
+import joblib
 
 # Flask 앱 초기화
 app = Flask(__name__)
@@ -28,6 +29,8 @@ supporting_db = public_to_vector_db()
 llm = ChatOpenAI(temperature=0.5, model='gpt-4o', openai_api_key=openai_api_key)
 # agent_components 초기화
 agent_components = initialize_agent_components(llm)
+model = joblib.load('naive_bayes_model.joblib')
+vectorizer = joblib.load('vectorizer.joblib')
 # 전역 변수라 오류 생길수도? -> 빌드 후 확인
 chat_history = []
 @app.route('/', methods=['POST'])
@@ -73,13 +76,18 @@ def process_request():
         # 데이터 추출
         extracted_data = ExtractLink(answer, llm)
         print(f"Extracted data: {extracted_data}")
-
+        
+        # 텍스트 데이터 벡터화
+        query_vec = vectorizer.transform(query)
+        # 모델을 사용하여 예측
+        prediction = model.predict(query_vec)
         # 분석 결과를 클라이언트로 반환 (Java로)
         #  query, answer, label까지 반환으로 추가 (backend와 상의)
         analysis_result = {
             "documentId": documentId,
             "content": query,
-            "result": answer
+            "result": answer,
+            "label" : prediction
         }
 
         return jsonify(analysis_result), 200
