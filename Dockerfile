@@ -1,5 +1,5 @@
 # AI 서비스 (Python)
-FROM python:3 AS flask
+FROM python:3.12.7 AS flask
 WORKDIR /app
 # Rust 및 Cargo 설치
 RUN apt-get update && apt-get install -y \

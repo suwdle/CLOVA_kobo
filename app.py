@@ -22,21 +22,21 @@ if not openai_api_key:
 
 BACKEND_URL = "http://localhost:5050"
 
-# 벡터 데이터베이스 초기화
+# Initialize vector db
 supporting_db = public_to_vector_db()
 
-# LLM 초기화
+# Initialize OpenAI llm
 llm = ChatOpenAI(temperature=0.5, model='gpt-4o', openai_api_key=openai_api_key)
-# agent_components 초기화
+# agent_components
 agent_components = initialize_agent_components(llm)
 model = joblib.load('naive_bayes_model.joblib')
 vectorizer = joblib.load('vectorizer.joblib')
-# 전역 변수라 오류 생길수도? -> 빌드 후 확인
+
 chat_history = []
 @app.route('/', methods=['POST'])
 def process_request():
     try:
-        # 클라이언트로부터 JSON 데이터 가져오기 (Java에서 전달됨)
+        # data and documentID from client
         data = request.get_json()
         documentId = data.get('documentId')
         query = data.get('content')
@@ -49,7 +49,7 @@ def process_request():
         doc_path = None
         document_db = None
 
-        # 사용자 문서가 있을 때
+        # When document from client exists
         if documentId:
             document_response = requests.get(f'{BACKEND_URL}/api/documents/{documentId}', timeout=10)
             document_response.raise_for_status()
@@ -57,7 +57,7 @@ def process_request():
             doc_path = document.get('document')
             print(f"사용자 문서 받아오기 성공: {doc_path}")
 
-            # PDF를 벡터 데이터베이스로 변환
+            # Upload PDF to vector db
             document_db = document_to_vector_db(doc_path)
             print("document converted to vector database")
         else:

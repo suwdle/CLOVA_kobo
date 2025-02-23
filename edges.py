@@ -8,9 +8,9 @@ from typing import List, Dict, Literal
 def which_retrieved(state: AgentState) -> str:
     # agent response을 통해 검색 경로를 결정
     agent_response = state.get('agent_response', '').lower()
-    if "유저 파일" in agent_response: return "user_file"
+    if "사용자 파일" in agent_response: return "user_file"
     elif "데이터베이스" in agent_response: return "db"
-    elif("검색 엔진") in agent_response : return "search engine"
+    elif "검색엔진" in agent_response : return "search engine"
     else: return "search engine"  # default
 
 

@@ -2,12 +2,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders.csv_loader import CSVLoader
-from llama_parse import LlamaParse
-from llama_index.core import SimpleDirectoryReader
-
-from dotenv import load_dotenv
-import os
-
+from tools import extract_text
 
 def public_to_vector_db():
 
@@ -24,44 +19,18 @@ def public_to_vector_db():
     print('...db build complete...')
     return supporting_db
 
+
 def document_to_vector_db(file_path):
     try:
-        load_dotenv()
-        llamaparse_key = os.getenv('LLAMA_PARSE_KEY')
-
-        print("Starting document processing")
-
-        # LlamaParse 설정
-        parser = LlamaParse(
-            api_key=llamaparse_key,
-            result_type="markdown",  # "markdown" 또는 "text" 사용 가능
-            num_workers=4,
-            verbose=True,
-            language="ko"
-        )
-        file_extractor = {
-            ".pdf": parser,
-            ".pptx": parser,
-            ".docx": parser,
-            ".xlsx": parser
-        }
-
-        # 파일 파싱
-        documents = SimpleDirectoryReader(
-            input_files=[file_path],
-            file_extractor=file_extractor,
-        ).load_data()
-
-        # 텍스트 추출
-        text = ""
-        for doc in documents:
-            text += doc.get_text()
-
+        print("문서 처리 시작")
+        # 파일에서 텍스트 추출
+        text = extract_text(file_path)
+        
         # 텍스트 정규화
         text = text.replace('\n', ' ').replace('\r', '')
-        text = ' '.join(text.split())  # 연속된 공백 제거
+        text = ' '.join(text.split())  # 중복 공백 제거
         text = text.encode('utf-8', errors='ignore').decode('utf-8')
-
+        
         # 텍스트 분할
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
@@ -70,16 +39,15 @@ def document_to_vector_db(file_path):
             separators=["\n\n", "\n", " ", ""]
         )
         texts = text_splitter.split_text(text)
-
+        
         # FAISS 벡터 저장소 생성
         embeddings = OpenAIEmbeddings()
         vector_db = FAISS.from_texts(texts, embeddings)
-
-        print("Document processing completed")
+        
+        print("문서 처리 완료")
         return vector_db
-
     except Exception as e:
-        print(f"Error in document processing: {e}")
+        print(f"문서 처리 중 오류 발생: {e}")
         return None
 
     
