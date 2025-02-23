@@ -21,7 +21,7 @@ if __name__ == "__main__":
     llm = ChatOpenAI(temperature=0.4, model='gpt-4o-mini',openai_api_key= openai_api_key)
     agent_components = initialize_agent_components(llm)
     chat_history = []
-    doc_path = '/home/seokjun/Downloads/128928906711651250_BOK 기업의 주요 재무분석지표의 이해 09.07.24.ppt_.pdf'
+    doc_path = '/home/seokjun/Downloads/어텐션 알고리즘과 트랜스포머.pptx'
     document_db = document_to_vector_db(doc_path)
     while True:        
         query = input("질문을 입력하세요 (종료하려면 'exit' 입력): ")
