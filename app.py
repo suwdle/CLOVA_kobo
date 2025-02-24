@@ -26,7 +26,7 @@ BACKEND_URL = "http://localhost:5050"
 supporting_db = public_to_vector_db()
 
 # Initialize OpenAI llm
-llm = ChatOpenAI(temperature=0.5, model='gpt-4o', openai_api_key=openai_api_key)
+llm = ChatOpenAI(temperature=0.5, model='gpt-4o-mini', openai_api_key=openai_api_key)
 # agent_components
 agent_components = initialize_agent_components(llm)
 model = joblib.load('naive_bayes_model.joblib')

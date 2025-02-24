@@ -10,7 +10,7 @@ from langchain_community.chat_models import ChatOpenAI
 class AgentState(TypedDict):
     messages: Sequence[BaseMessage]  # 메시지 시퀀스
     input: str  # 사용자 입력
-    doc_path: str  # PDF 파일 경로
+    doc_path: str  # 파일 경로
     openai_api_key: str  # OpenAI API 
     agent_scratchpad: List[BaseMessage]  # 에이전트 작업 메모
     document_db: FAISS | None
