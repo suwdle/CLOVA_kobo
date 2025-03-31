@@ -20,7 +20,7 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("OpenAI API key not found in environment variables")
 
-BACKEND_URL = "http://localhost:5050"
+BACKEND_URL = "https://co-worker.store" # 배포 URL로 대체
 
 # Initialize vector db
 supporting_db = public_to_vector_db()
