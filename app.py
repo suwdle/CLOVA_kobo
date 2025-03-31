@@ -87,7 +87,7 @@ def process_request():
             "documentId": documentId,
             "content": query,
             "result": answer,
-            "label" : prediction[0]
+            "label" : int(prediction[0])
         }
 
         return jsonify(analysis_result), 200
