@@ -78,7 +78,7 @@ def process_request():
         print(f"Extracted data: {extracted_data}")
         
         # 텍스트 데이터 벡터화
-        query_vec = vectorizer.transform(query)
+        query_vec = vectorizer.transform([query])
         # 모델을 사용하여 예측
         prediction = model.predict(query_vec)
         # 분석 결과를 클라이언트로 반환 (Java로)
