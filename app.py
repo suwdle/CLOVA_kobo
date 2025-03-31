@@ -9,7 +9,8 @@ from ExtractLink import ExtractLink
 from workflow import run_workflow, extract_final_response
 from flask_cors import CORS
 import joblib
-
+import boto3
+from botocore.exceptions import NoCredentialsError
 # Flask 앱 초기화
 app = Flask(__name__)
 CORS(app)
@@ -20,6 +21,17 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("OpenAI API key not found in environment variables")
 
+aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+aws_region = os.getenv('AWS_REGION')
+s3_bucket_name = os.getenv('S3_BUCKET_NAME')
+
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=aws_access_key,
+    aws_secret_access_key=aws_secret_key,
+    region_name=aws_region
+)
 BACKEND_URL = "https://co-worker.store" # 배포 URL로 대체
 
 # Initialize vector db
@@ -38,7 +50,8 @@ def process_request():
     try:
         # data and documentID from client
         data = request.get_json()
-        documentId = data.get('documentId')
+        file_name = data.get('originalFileName')
+        file_url = data.get('fileUrl')
         query = data.get('content')
 
         if not query:
@@ -50,19 +63,23 @@ def process_request():
         document_db = None
 
         # When document from client exists
-        if documentId:
-            document_response = requests.get(f'{BACKEND_URL}/api/documents/{documentId}', timeout=10)
-            document_response.raise_for_status()
-            document = document_response.json()
-            doc_path = document.get('document')
-            print(f"사용자 문서 받아오기 성공: {doc_path}")
+        if file_name and file_url:
+            try:
+                # S3에서 파일 다운로드 (file_name이 S3 key라고 가정)
+                s3_local_path = f"/tmp/{file_name}" 
+                s3.download_file(s3_bucket_name, file_name, s3_local_path)
+                doc_path = s3_local_path
+                print(f"S3에서 파일 다운로드 성공: {doc_path}")
 
-            # Upload PDF to vector db
-            document_db = document_to_vector_db(doc_path)
-            print("document converted to vector database")
-        else:
-            print("사용자 문서가 없는 질문입니다.")
-
+                # Upload PDF to vector db
+                document_db = document_to_vector_db(doc_path)
+                print("document converted to vector database")
+            except NoCredentialsError:
+                print("S3 인증 정보가 잘못되었습니다.")
+                return jsonify({"error": "AWS credentials error"}), 500
+            except Exception as e:
+                print(f"S3 파일 다운로드 중 오류 발생: {e}")
+                return jsonify({"error": "Failed to download file from S3", "details": str(e)}), 500
 
         # 워크플로우 실행
         result = run_workflow(query, doc_path, openai_api_key, document_db, supporting_db, llm, agent_components, chat_history)
@@ -84,7 +101,8 @@ def process_request():
         # 분석 결과를 클라이언트로 반환 (Java로)
         #  query, answer, label까지 반환으로 추가 (backend와 상의)
         analysis_result = {
-            "documentId": documentId,
+            "originalFileName": file_name,
+            "fileUrl": file_url,
             "content": query,
             "result": answer,
             "label" : int(prediction[0])
