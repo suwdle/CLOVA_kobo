@@ -50,8 +50,9 @@ def process_request():
     try:
         # data and documentID from client
         data = request.get_json()
-        file_name = data.get('originalFileName')
-        file_url = data.get('fileUrl')
+        document_data = data.get('document')
+        file_name = document_data.get('originalFileName')
+        file_url = document_data.get('fileUrl')
         query = data.get('content')
 
         if not query:
@@ -101,6 +102,7 @@ def process_request():
         # 분석 결과를 클라이언트로 반환 (Java로)
         #  query, answer, label까지 반환으로 추가 (backend와 상의)
         analysis_result = {
+            "document": document_data,
             "originalFileName": file_name,
             "fileUrl": file_url,
             "content": query,
