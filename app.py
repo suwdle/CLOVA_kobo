@@ -102,9 +102,10 @@ def process_request():
         # 분석 결과를 클라이언트로 반환 (Java로)
         #  query, answer, label까지 반환으로 추가 (backend와 상의)
         analysis_result = {
-            "document": document_data,
-            "originalFileName": file_name,
-            "fileUrl": file_url,
+            "document":{
+                "originalFileName": file_name,
+                "fileUrl": file_url
+            },
             "content": query,
             "result": answer,
             "label" : int(prediction[0])
