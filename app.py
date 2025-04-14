@@ -38,7 +38,7 @@ BACKEND_URL = "https://co-worker.store" # 배포 URL로 대체
 supporting_db = public_to_vector_db()
 
 # Initialize OpenAI llm
-llm = ChatOpenAI(temperature=0.5, model='gpt-4o-mini', openai_api_key=openai_api_key)
+llm = ChatOpenAI(temperature=0.5, model='gpt-3.5-turbo', openai_api_key=openai_api_key)
 # agent_components
 agent_components = initialize_agent_components(llm)
 model = joblib.load('naive_bayes_model.joblib')

@@ -5,20 +5,20 @@ from langchain_community.document_loaders.csv_loader import CSVLoader
 from tools import extract_text
 
 def public_to_vector_db():
-
+    if os.path.exists("faiss_index"):
+        print("Loading existing FAISS DB")
+        return FAISS.load_local("faiss_index", OpenAIEmbeddings())
+    
+    print("Building new FAISS DB")
     loader = CSVLoader(file_path='./test_data/중소기업지원사업목록_20240331.csv', encoding='cp949')
-    try:
-        data = loader.load()
-    except Exception as e:
-        print(f"Error loading CSV file: {e}")
-        raise
+    data = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
     texts = text_splitter.split_documents(data)
     embeddings = OpenAIEmbeddings()
-    supporting_db = FAISS.from_documents(texts, embeddings)
+    db = FAISS.from_documents(texts, embeddings)
+    db.save_local("faiss_index")
     print('...db build complete...')
-    return supporting_db
-
+    return db
 
 def document_to_vector_db(file_path):
     try:
