@@ -3,6 +3,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders.csv_loader import CSVLoader
 from tools import extract_text
+import os
 
 def public_to_vector_db():
     if os.path.exists("faiss_index"):
