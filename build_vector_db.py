@@ -9,7 +9,7 @@ import os
 def public_to_vector_db():
     if os.path.exists("faiss_index"):
         print("Loading existing FAISS DB")
-        return FAISS.load_local("faiss_index", OpenAIEmbeddings())
+        return FAISS.load_local("faiss_index", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
     
     print("Building new FAISS DB")
     loader = CSVLoader(file_path='./test_data/중소기업지원사업목록_20240331.csv', encoding='cp949')
