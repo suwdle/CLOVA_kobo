@@ -7,28 +7,21 @@ from tools import extract_text
 import os
 
 def public_to_vector_db():
-    # 임베딩 모델 이름 (KoSimCSE: 한국어 문장 임베딩 특화)
-    model_name = "jhgan/ko-sroberta-multitask"
-
-    # 기존 벡터 저장소가 있으면 로드
     if os.path.exists("faiss_index"):
-        print("기존 FAISS 벡터 DB 로드 중...")
-        embeddings = HuggingFaceEmbeddings(model_name=model_name)
-        return FAISS.load_local("faiss_index", embeddings)
-
+        print("Loading existing FAISS DB")
+        return FAISS.load_local("faiss_index", OpenAIEmbeddings())
+    
+    print("Building new FAISS DB")
     loader = CSVLoader(file_path='./test_data/중소기업지원사업목록_20240331.csv', encoding='cp949')
     data = loader.load()
-
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
     texts = text_splitter.split_documents(data)
-
-    embeddings = HuggingFaceEmbeddings(model_name=model_name)
-
+    embeddings = OpenAIEmbeddings()
     db = FAISS.from_documents(texts, embeddings)
     db.save_local("faiss_index")
-    print("벡터 DB 생성 완료")
-
+    print('...db build complete...')
     return db
+
 def document_to_vector_db(file_path):
     try:
         print("문서 처리 시작")
