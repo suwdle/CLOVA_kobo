@@ -2,11 +2,11 @@ from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import os
 from langchain_openai import ChatOpenAI
-from agent_components import initialize_agent_components
+from graph.agent_components import initialize_agent_components
 import requests
-from build_vector_db import document_to_vector_db, public_to_vector_db
-from ExtractLink import ExtractLink
-from workflow import run_workflow, extract_final_response
+from vector_db.build_vector_db import document_to_vector_db, public_to_vector_db
+from tools.ExtractLink import ExtractLink
+from graph.workflow import run_workflow, extract_final_response
 from flask_cors import CORS
 import joblib
 import boto3
@@ -100,7 +100,6 @@ def process_request():
         # 모델을 사용하여 예측
         prediction = model.predict(query_vec)
         # 분석 결과를 클라이언트로 반환 (Java로)
-        #  query, answer, label까지 반환으로 추가 (backend와 상의)
         analysis_result = {
             "document":{
                 "originalFileName": file_name,

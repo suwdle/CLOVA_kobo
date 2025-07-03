@@ -3,7 +3,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders.csv_loader import CSVLoader
 from langchain.embeddings import HuggingFaceEmbeddings
-from tools import extract_text
+from utils.tools import extract_text
 import os
 
 def public_to_vector_db():

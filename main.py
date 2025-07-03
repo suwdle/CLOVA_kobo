@@ -1,10 +1,10 @@
-from workflow import run_workflow, extract_final_response
+from graph.workflow import run_workflow, extract_final_response
 from dotenv import load_dotenv
 import os
-from build_vector_db import public_to_vector_db, document_to_vector_db
-from agent_components import initialize_agent_components
+from vector_db.build_vector_db import public_to_vector_db, document_to_vector_db
+from graph.agent_components import initialize_agent_components
 from langchain_openai import ChatOpenAI
-from ExtractLink import ExtractLink
+from tools.ExtractLink import ExtractLink
 import joblib
 
 if __name__ == "__main__":

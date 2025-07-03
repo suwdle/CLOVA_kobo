@@ -3,10 +3,10 @@ from langchain.agents import AgentExecutor, OpenAIFunctionsAgent
 from langchain.tools import Tool
 from langchain_community.vectorstores import FAISS
 from typing import List, Dict
-from AgentState import AgentState
+from graph.AgentState import AgentState
 from typing import List, Dict, Any
 import urllib.request
-from tools import extract_content
+from utils.tools import extract_content
 from dotenv import load_dotenv
 import os
 
