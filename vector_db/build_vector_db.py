@@ -6,23 +6,22 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from utils.tools import extract_text
 import os
 
-def public_to_vector_db():
+def public_to_vector_db(embeddings):
     if os.path.exists("faiss_index"):
         print("Loading existing FAISS DB")
-        return FAISS.load_local("faiss_index", OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+        return FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     
     print("Building new FAISS DB")
     loader = CSVLoader(file_path='./test_data/중소기업지원사업목록_20240331.csv', encoding='cp949')
     data = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
     texts = text_splitter.split_documents(data)
-    embeddings = OpenAIEmbeddings()
     db = FAISS.from_documents(texts, embeddings)
     db.save_local("faiss_index")
     print('...db build complete...')
     return db
 
-def document_to_vector_db(file_path):
+def document_to_vector_db(file_path, embeddings):
     try:
         print("문서 처리 시작")
         # 파일에서 텍스트 추출
@@ -43,7 +42,6 @@ def document_to_vector_db(file_path):
         texts = text_splitter.split_text(text)
         
         # FAISS 벡터 저장소 생성
-        embeddings = OpenAIEmbeddings()
         vector_db = FAISS.from_texts(texts, embeddings)
         
         print("문서 처리 완료")

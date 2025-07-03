@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import os
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from graph.agent_components import initialize_agent_components
 import requests
 from vector_db.build_vector_db import document_to_vector_db, public_to_vector_db
@@ -17,9 +17,9 @@ CORS(app)
 
 # 환경 변수 로드
 load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    raise ValueError("OpenAI API key not found in environment variables")
+clova_api_key = os.getenv("CLOVA_API_KEY")
+if not clova_api_key:
+    raise ValueError("Clova API key not found in environment variables")
 
 aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
@@ -35,10 +35,11 @@ s3 = boto3.client(
 BACKEND_URL = "https://co-worker.store" # 배포 URL로 대체
 
 # Initialize vector db
-supporting_db = public_to_vector_db()
+embeddings = OpenAIEmbeddings(api_key=clova_api_key, base_url="https://clovastudio.stream.ntruss.com/v1/openai")
+supporting_db = public_to_vector_db(embeddings)
 
 # Initialize OpenAI llm
-llm = ChatOpenAI(temperature=0.5, model='gpt-3.5-turbo', openai_api_key=openai_api_key)
+llm = ChatOpenAI(temperature=0.5, model='gpt-3.5-turbo', api_key=clova_api_key, base_url="https://clovastudio.stream.ntruss.com/v1/openai")
 # agent_components
 agent_components = initialize_agent_components(llm)
 model = joblib.load('naive_bayes_model.joblib')
@@ -73,7 +74,7 @@ def process_request():
                 print(f"S3에서 파일 다운로드 성공: {doc_path}")
 
                 # Upload PDF to vector db
-                document_db = document_to_vector_db(doc_path)
+                document_db = document_to_vector_db(doc_path, embeddings)
                 print("document converted to vector database")
             except NoCredentialsError:
                 print("S3 인증 정보가 잘못되었습니다.")
@@ -83,7 +84,7 @@ def process_request():
                 return jsonify({"error": "Failed to download file from S3", "details": str(e)}), 500
 
         # 워크플로우 실행
-        result = run_workflow(query, doc_path, openai_api_key, document_db, supporting_db, llm, agent_components, chat_history)
+        result = run_workflow(query, doc_path, clova_api_key, document_db, supporting_db, llm, agent_components, chat_history)
         print("Workflow executed")
         # 최종 응답 추출
         answer = extract_final_response(result)
