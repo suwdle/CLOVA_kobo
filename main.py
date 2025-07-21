@@ -1,45 +1,59 @@
-from graph.workflow import run_workflow, extract_final_response
 from dotenv import load_dotenv
 import os
-from vector_db.build_vector_db import public_to_vector_db, document_to_vector_db
-from graph.agent_components import initialize_agent_components
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from tools.ExtractLink import ExtractLink
-import joblib
+from graph.workflow import run_workflow
+from vector_db.build_vector_db import load_public_db, build_document_db
+from utils.tools import extract_structured_data
 
-if __name__ == "__main__":
+def main():
+    """Main function to run the chatbot from the command line."""
+    # --- Load Environment and Configuration ---
     load_dotenv()
-    # API 키 가져오기
-    clova_api_key = os.getenv("CLOVA_API_KEY")
-    # 에러 처리
-    if not clova_api_key:
-        raise ValueError("Clova API key not found in environment variables")
-    # load naive_bayesian classifier and vectorizer for query classification
-    model = joblib.load('naive_bayes_model.joblib')
-    vectorizer = joblib.load('vectorizer.joblib')
-    embeddings = OpenAIEmbeddings(api_key=clova_api_key, base_url="https://clovastudio.stream.ntruss.com/v1/openai")
-    supporting_db = public_to_vector_db(embeddings)
-    llm = ChatOpenAI(temperature=0.4, model='gpt-4o-mini',api_key= clova_api_key, base_url="https://clovastudio.stream.ntruss.com/v1/openai")
-    agent_components = initialize_agent_components(llm)
-    chat_history = []
-    doc_path = '/home/seokjun/Downloads/어텐션 알고리즘과 트랜스포머.pptx'
-    document_db = document_to_vector_db(doc_path, embeddings)
-    while True:        
-        query = input("질문을 입력하세요 (종료하려면 'exit' 입력): ")
-        # 텍스트 데이터 벡터화
-        query_vec = vectorizer.transform([query])
-        # 모델을 사용하여 예측
-        prediction = model.predict(query_vec)
-        print("Prediction:", prediction)    
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise ValueError("OPENAI_API_KEY not found in environment variables")
 
-        # exit 입력시 반복문 탈출
+    # --- Initialize Models and Databases ---
+    llm = ChatOpenAI(temperature=0.7, model='gpt-4o-mini', api_key=openai_api_key)
+    embeddings = OpenAIEmbeddings(api_key=openai_api_key)
+
+    print("Loading databases...")
+    support_db = load_public_db(embeddings, db_type='support')
+    # financial_db is loaded lazily within the workflow if needed
+
+    # --- Optional: Load a user document for testing ---
+    document_db = None
+    # Example: Uncomment the following lines to test with a local document
+    # doc_path = './test_data/your_document.pdf' # <--- CHANGE THIS PATH
+    # if os.path.exists(doc_path):
+    #     print(f"Building vector DB for document: {doc_path}")
+    #     document_db = build_document_db(doc_path, embeddings)
+    # else:
+    #     print(f"Document path not found: {doc_path}")
+
+    # --- Main Chat Loop ---
+    chat_history = []
+    print("\nChatbot is ready. Type 'exit' to end the conversation.")
+
+    while True:
+        query = input("\nUser: ")
         if query.lower() == 'exit':
             break
-        result = run_workflow(query, doc_path, clova_api_key, document_db, supporting_db, llm, agent_components, chat_history)
-        # LangGraph의 마지막 답변을 추출
-        response = extract_final_response(result)
-        print("답변:", response)
-        chat_history.append(query)
-        chat_history.append(response)
-        extracted_data = ExtractLink(response, llm)
+
+        # Run the workflow
+        result = run_workflow(query, document_db, support_db, llm, embeddings, chat_history)
+        final_answer = result.get("generated_answer", "Sorry, I encountered an error.")
         
+        print(f"AI: {final_answer}")
+
+        # Extract structured data from the answer for potential downstream use
+        extracted_info = extract_structured_data(final_answer, llm)
+        if extracted_info:
+            print(f"Extracted Information: {extracted_info}")
+
+        # Update chat history
+        chat_history.append(("human", query))
+        chat_history.append(("ai", final_answer))
+
+if __name__ == "__main__":
+    main()

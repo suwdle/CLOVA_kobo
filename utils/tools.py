@@ -1,77 +1,78 @@
 import re
-from typing import List, Dict
 import json
+from typing import List, Dict, Optional
 from langchain.schema import Document
-import fitz  # PyMuPDF for PDF
-from docx import Document  # python-docx for DOCX
-from pptx import Presentation  # python-pptx for PPTX
-import openpyxl  # openpyxl for XLSX
-from dotenv import load_dotenv
+from langchain_core.pydantic_v1 import BaseModel, Field
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+import fitz  # PyMuPDF
+from docx import Document as DocxDocument
+from pptx import Presentation
+import openpyxl
 import os
 
-def extract_content(text):
-    # Use regular expression to find content between [[ and ]]
-    pattern = r'\[\[(.*?)\]\]'
-    result = re.findall(pattern, text)
-    return str(result)
+# --- Text Extraction from Documents ---
 
-
-def process_json_to_documents(data: List[Dict]) -> List[Dict]:
-    if isinstance(data, bytes):
-        data = data.decode('utf-8')
-    
-    if isinstance(data, str):
-        data = json.loads(data)
-    
-    documents = []
-    for item in data:
-        # JSON 구조에 따라 적절히 수정
-        text = f"{item[1]}"
-        doc = Document(page_content=text, metadata={})
-        documents.append(doc)
-    return documents
-
-
-def extract_text(file_path):
+def extract_text(file_path: str) -> str:
+    """Extracts text content from various file formats (PDF, DOCX, PPTX, XLSX)."""
     ext = os.path.splitext(file_path)[1].lower()
     text = ""
-    
-    if ext == '.pdf':
-        try:
-            doc = fitz.open(file_path)
-            for page in doc:
-                text += page.get_text()
-        except Exception as e:
-            print(f"PDF 읽기 오류 ({file_path}): {e}")
-            
-    elif ext == '.docx':
-        try:
-            doc = Document(file_path)
+    try:
+        if ext == '.pdf':
+            with fitz.open(file_path) as doc:
+                for page in doc:
+                    text += page.get_text()
+        elif ext == '.docx':
+            doc = DocxDocument(file_path)
             text = "\n".join([para.text for para in doc.paragraphs])
-        except Exception as e:
-            print(f"DOCX 읽기 오류 ({file_path}): {e}")
-            
-    elif ext == '.pptx':
-        try:
+        elif ext == '.pptx':
             prs = Presentation(file_path)
             for slide in prs.slides:
                 for shape in slide.shapes:
                     if hasattr(shape, "text"):
                         text += shape.text + "\n"
-        except Exception as e:
-            print(f"PPTX 읽기 오류 ({file_path}): {e}")
-            
-    elif ext == '.xlsx':
-        try:
+        elif ext == '.xlsx':
             wb = openpyxl.load_workbook(file_path, read_only=True)
             for sheet in wb.worksheets:
                 for row in sheet.iter_rows(values_only=True):
                     row_text = " ".join([str(cell) for cell in row if cell is not None])
                     text += row_text + "\n"
-        except Exception as e:
-            print(f"XLSX 읽기 오류 ({file_path}): {e}")
-            
-    else:
-        print(f"지원되지 않는 파일 형식: {ext}")
-    
+        else:
+            print(f"Unsupported file format: {ext}")
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
     return text
+
+# --- Structured Data Extraction using Function Calling ---
+
+class ExtractedEntity(BaseModel):
+    """Represents a single extracted entity (e.g., a support program or financial product)."""
+    name: str = Field(description="The name of the support program or financial product.")
+    link: Optional[str] = Field(description="The URL link to the program or product, if available.")
+
+class ExtractedData(BaseModel):
+    """A list of all entities extracted from the text."""
+    entities: List[ExtractedEntity]
+
+def extract_structured_data(text: str, llm: ChatOpenAI) -> List[Dict]:
+    """Extracts names and links of programs/products from text using LLM function calling."""
+    if not text:
+        return []
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """
+        You are an expert at extracting specific information from text.
+        Your task is to identify all mentions of government support programs or financial products and their corresponding URLs.
+        Extract all of them. Do not extract general-purpose links like '전자공시시스템 (https://dart.fss.or.kr)'.
+        If no relevant entities are found, return an empty list.
+        """),
+        ("human", "Please extract the entities from the following text:\n\n{input}")
+    ])
+
+    try:
+        extractor_chain = prompt | llm.with_structured_output(ExtractedData)
+        result = extractor_chain.invoke({"input": text})
+        return [entity.dict() for entity in result.entities]
+    except Exception as e:
+        print(f"Error during structured data extraction: {e}")
+        return []

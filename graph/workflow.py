@@ -1,85 +1,39 @@
 from langgraph.graph import StateGraph, END
 from graph.AgentState import AgentState
-from graph.nodes import agent, naver_retrieve, input_retrieve, db_retrieve, combiner, generate, rewrite
-from graph.edges import which_retrieved, grade_documents, should_continue
+from graph.nodes import determine_retrieval_strategy, retrieve_documents, generate_answer
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-# workflow function for LangGraph
-# we need these variables to run this function.
-def run_workflow(input_query, doc_path, clova_api_key, document_db, supporting_db, llm, agent_components, chat_history):
-    
-    # define StateGraph
+def run_workflow(query: str, document_db, supporting_db, llm: ChatOpenAI, embeddings: OpenAIEmbeddings, chat_history: list):
+    """Defines and runs the main agentic workflow."""
+
+    # Define the state graph
     workflow = StateGraph(AgentState)
-    
-    # add nodes
-    workflow.add_node("agent", agent)
-    workflow.add_node("naver_retrieve", naver_retrieve)
-    workflow.add_node("input_retrieve", input_retrieve)
-    workflow.add_node("db_retrieve", db_retrieve)
-    workflow.add_node("combiner", combiner)
-    workflow.add_node("generate", generate)
-    workflow.add_node("rewrite", rewrite)
-    
-    # start of the my LangGraph
-    workflow.set_entry_point("agent")
-    # 어떤 파일을 검색할지 정하는 edge 
-    workflow.add_conditional_edges(
-        "agent",
-        which_retrieved,
-        {
-            "user_file": "input_retrieve",
-            "db": "db_retrieve",
-            "search engine": "naver_retrieve"
-        }
-    )
-    
-    # combiner에 들어가야 양쪽 정보 모두 활용 가능
-    workflow.add_edge("input_retrieve", "combiner")
-    workflow.add_edge("db_retrieve", "combiner")
-    workflow.add_edge("naver_retrieve", "combiner")
-    workflow.add_edge("combiner","generate")
-    
-    # evaluate generated_answer
-    workflow.add_conditional_edges(
-        "generate",
-        grade_documents,
-        {
-            "yes": END,
-            "no": "rewrite",
-        },
-    )
-    # rewrite question for better answer
-    workflow.add_conditional_edges(
-        "rewrite",
-        should_continue,
-        {
-            "continue": "agent",
-            "end": END
-        }
-    )
 
+    # Add nodes
+    # We bind the LLM and embeddings instances to the node functions where they are needed.
+    workflow.add_node("determine_strategy", lambda state: determine_retrieval_strategy(state, llm))
+    workflow.add_node("retrieve_documents", lambda state: retrieve_documents(state, embeddings))
+    workflow.add_node("generate_answer", lambda state: generate_answer(state, llm))
+
+    # Define the edges
+    workflow.set_entry_point("determine_strategy")
+    workflow.add_edge("determine_strategy", "retrieve_documents")
+    workflow.add_edge("retrieve_documents", "generate_answer")
+    workflow.add_edge("generate_answer", END)
+
+    # Compile the graph
     app = workflow.compile()
 
-    # 기본 agentstate
+    # Prepare the initial state
     initial_state = {
-        "input": input_query, 
-        "doc_path": doc_path,
-        "clova_api_key": clova_api_key,
-        "agent_scratchpad": [],
-        "agent_response":"",
+        "input": query,
         "document_db": document_db,
         "supporting_db": supporting_db,
-        "llm" : llm,
-        "agent_components": agent_components,
-        "chat_history": chat_history
+        "financial_db": None, # Lazily loaded in the retrieval node
+        "chat_history": chat_history,
+        "retrieved_docs": [],
     }
+
+    # Run the workflow
     result = app.invoke(initial_state)
     return result
-
-# extract final answer from final agent state
-def extract_final_response(result):
-    
-    final_response = result.get("generated_answer", "")
-    
-    
-    return final_response
-

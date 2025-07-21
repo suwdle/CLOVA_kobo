@@ -1,38 +1,77 @@
-from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders.csv_loader import CSVLoader
-from langchain.embeddings import HuggingFaceEmbeddings
 from utils.tools import extract_text
 import os
 
-def public_to_vector_db(embeddings):
-    if os.path.exists("faiss_index"):
-        print("Loading existing FAISS DB")
-        return FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-    
-    print("Building new FAISS DB")
-    loader = CSVLoader(file_path='./test_data/중소기업지원사업목록_20240331.csv', encoding='cp949')
-    data = loader.load()
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
-    texts = text_splitter.split_documents(data)
-    db = FAISS.from_documents(texts, embeddings)
-    db.save_local("faiss_index")
-    print('...db build complete...')
-    return db
+# --- Constants ---
+FAISS_INDEX_DIR = "faiss_index"
+SUPPORT_PROGRAM_INDEX = os.path.join(FAISS_INDEX_DIR, "support_programs")
+FINANCIAL_PRODUCT_INDEX = os.path.join(FAISS_INDEX_DIR, "financial_products")
 
-def document_to_vector_db(file_path, embeddings):
+# --- Private Functions ---
+def _build_and_save_db_from_csv(csv_path, index_path, embeddings, encoding='cp949'):
+    """Builds and saves a FAISS database from a CSV file."""
     try:
-        print("문서 처리 시작")
-        # 파일에서 텍스트 추출
+        loader = CSVLoader(file_path=csv_path, encoding=encoding)
+        data = loader.load()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
+        texts = text_splitter.split_documents(data)
+        db = FAISS.from_documents(texts, embeddings)
+        os.makedirs(os.path.dirname(index_path), exist_ok=True)
+        db.save_local(index_path)
+        print(f"Successfully built and saved DB to {index_path}")
+        return db
+    except Exception as e:
+        print(f"Error building DB from {csv_path}: {e}")
+        return None
+
+# --- Public API ---
+def load_public_db(embeddings, db_type='support'):
+    """Loads a pre-built public FAISS database (support programs or financial products)."""
+    if db_type == 'support':
+        index_path = SUPPORT_PROGRAM_INDEX
+        csv_path = './test_data/중소기업지원사업목록_20240331.csv'
+    elif db_type == 'financial':
+        index_path = FINANCIAL_PRODUCT_INDEX
+        # This CSV file for financial products is a placeholder.
+        # You should replace it with the actual data file.
+        csv_path = './test_data/금융상품목록_예시.csv' 
+    else:
+        raise ValueError("Invalid db_type specified. Choose 'support' or 'financial'.")
+
+    if os.path.exists(index_path):
+        print(f"Loading existing FAISS DB from {index_path}")
+        try:
+            return FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
+        except Exception as e:
+            print(f"Error loading DB from {index_path}: {e}")
+            # If loading fails, try rebuilding from source
+            print("Attempting to rebuild the database...")
+    
+    if not os.path.exists(csv_path):
+        print(f"Warning: CSV file not found at {csv_path}. Cannot build the database.")
+        if db_type == 'financial':
+            print("A placeholder for the financial products CSV is expected. Please create it.")
+        return None
+
+    print(f"Building new FAISS DB for {db_type}...")
+    return _build_and_save_db_from_csv(csv_path, index_path, embeddings)
+
+def build_document_db(file_path, embeddings):
+    """Creates a FAISS vector database from a user-provided document."""
+    try:
+        print(f"Processing document: {file_path}")
         text = extract_text(file_path)
-        
-        # 텍스트 정규화
+        if not text:
+            print("No text could be extracted from the document.")
+            return None
+
+        # Normalize and clean text
         text = text.replace('\n', ' ').replace('\r', '')
-        text = ' '.join(text.split())  # 중복 공백 제거
+        text = ' '.join(text.split())
         text = text.encode('utf-8', errors='ignore').decode('utf-8')
-        
-        # 텍스트 분할
+
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=100,
@@ -41,14 +80,9 @@ def document_to_vector_db(file_path, embeddings):
         )
         texts = text_splitter.split_text(text)
         
-        # FAISS 벡터 저장소 생성
         vector_db = FAISS.from_texts(texts, embeddings)
-        
-        print("문서 처리 완료")
+        print("Successfully created in-memory vector database for the document.")
         return vector_db
     except Exception as e:
-        print(f"문서 처리 중 오류 발생: {e}")
+        print(f"Error processing document {file_path}: {e}")
         return None
-
-    
-
