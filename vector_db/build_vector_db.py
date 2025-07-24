@@ -31,11 +31,9 @@ def load_public_db(embeddings, db_type='support'):
     """Loads a pre-built public FAISS database (support programs or financial products)."""
     if db_type == 'support':
         index_path = SUPPORT_PROGRAM_INDEX
-        csv_path = './test_data/중소기업지원사업목록_20240331.csv'
+        csv_path = './test_data/중소벤처기업부_중소기업지원사업목록_20250331.csv'
     elif db_type == 'financial':
         index_path = FINANCIAL_PRODUCT_INDEX
-        # This CSV file for financial products is a placeholder.
-        # You should replace it with the actual data file.
         csv_path = './test_data/금융상품목록_예시.csv' 
     else:
         raise ValueError("Invalid db_type specified. Choose 'support' or 'financial'.")
