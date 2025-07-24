@@ -49,26 +49,34 @@ def determine_retrieval_strategy(state: AgentState, llm: ChatOpenAI):
 
 # --- Node 2: Retrieve Documents ---
 def retrieve_documents(state: AgentState, embeddings: OpenAIEmbeddings):
-    """Retrieves documents from the appropriate source based on the strategy."""
+    """Retrieves documents and adds source metadata for the context protocol."""
     print("---RETRIEVING DOCUMENTS---")
     strategy = state["retrieval_strategy"]
-    source = strategy.source
+    source_type = strategy.source
     query = strategy.query
     
-    retrieved_docs = []
-    if source == "user_document" and state.get('document_db'):
+    documents = []
+    if source_type == "user_document" and state.get('document_db'):
         print(f"Retrieving from user document with query: {query}")
         retriever = state['document_db'].as_retriever(k=5)
-        retrieved_docs = retriever.invoke(query)
-    elif source == "support_programs":
+        documents = retriever.invoke(query)
+        for doc in documents:
+            doc.metadata['source'] = 'user_document'
+            doc.metadata['name'] = 'User-Uploaded Document'
+
+    elif source_type == "support_programs":
         print(f"Retrieving from support programs DB with query: {query}")
         db = state.get('supporting_db')
         if db:
             retriever = db.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5}, k=8)
-            retrieved_docs = retriever.invoke(query)
-    elif source == "financial_products":
+            documents = retriever.invoke(query)
+            for doc in documents:
+                doc.metadata['source'] = 'support_programs_db'
+                # Assuming the CSV has a '사업명' column or similar
+                doc.metadata['name'] = doc.page_content.split(',')[0] # Basic name extraction
+
+    elif source_type == "financial_products":
         print(f"Retrieving from financial products DB with query: {query}")
-        # Lazily load the financial DB to save resources if not always needed
         financial_db = state.get('financial_db')
         if not financial_db:
             financial_db = load_public_db(embeddings, db_type='financial')
@@ -76,36 +84,60 @@ def retrieve_documents(state: AgentState, embeddings: OpenAIEmbeddings):
         
         if financial_db:
             retriever = financial_db.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5}, k=8)
-            retrieved_docs = retriever.invoke(query)
+            documents = retriever.invoke(query)
+            for doc in documents:
+                doc.metadata['source'] = 'financial_products_db'
+                # Assuming the CSV has a '상품명' column
+                doc.metadata['name'] = doc.page_content.split(',')[0] # Basic name extraction
     else:
         print("No specific data source required or available.")
 
-    print(f"Retrieved {len(retrieved_docs)} documents.")
-    return {"retrieved_docs": retrieved_docs}
+    print(f"Retrieved {len(documents)} documents.")
+    return {"retrieved_docs": documents}
 
 
 # --- Node 3: Generate Answer ---
 def generate_answer(state: AgentState, llm: ChatOpenAI):
-    """Generates a final answer based on the retrieved context and query."""
+    """Generates a final answer based on the structured context."""
     print("---GENERATING ANSWER---")
+
+    # 1. Build the structured context string
+    context_str = "<CONTEXT>\n"
+    for doc in state['retrieved_docs']:
+        source = doc.metadata.get('source', 'unknown')
+        name = doc.metadata.get('name', 'Unnamed Document')
+        priority = 'high' if source == 'user_document' else 'medium'
+        
+        context_str += f'  <SOURCE type="{source}" priority="{priority}">\n'
+        context_str += f'    <DOCUMENT name="{name}">\n'
+        context_str += f'      {doc.page_content}\n'
+        context_str += f'    </DOCUMENT>\n'
+        context_str += f'  </SOURCE>\n'
+    context_str += "</CONTEXT>"
+
+    # 2. Define the system prompt with instructions on how to use the context
+    system_prompt = """
+    You are an expert AI assistant for small and medium-sized enterprises (SMEs).
+    Your task is to provide clear, concise, and accurate answers in Korean based on the structured information provided in the <CONTEXT> block.
+
+    **Instructions for Interpreting the Context:**
+    - The <CONTEXT> block contains all the information you should use.
+    - Each piece of information is wrapped in a <SOURCE> tag, which has a `type` attribute indicating where it came from (e.g., `user_document`, `financial_products_db`).
+    - Pay close attention to the `priority` attribute. Information with `priority="high"` is the most important.
+    - When generating your answer, it is helpful to cite the source of your information to build trust (e.g., "사용자께서 제공해주신 문서에 따르면..." or "금융상품 데이터베이스에 따르면...").
+    - If the context is empty or does not contain relevant information to answer the question, clearly state that you could not find the necessary information.
+    """
+
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """
-        You are an expert AI assistant for small and medium-sized enterprises (SMEs).
-        Your task is to provide clear, concise, and accurate answers based on the provided context.
-        Always respond in Korean.
-        If the context is empty, state that you could not find relevant information.
-        When referencing specific programs or products, include any available links.
-        """),
-        ("user", "Based on the following information:\n\nContext:\n{context}\n\nUser Question: {input}\nPlease provide a comprehensive answer.")
+        ("system", system_prompt),
+        ("user", "Please provide a comprehensive answer to my question based on the provided context.\n\n{context}\n\nUser Question: {input}")
     ])
     
     generation_chain = prompt | llm
     
-    context = "\n".join([doc.page_content for doc in state['retrieved_docs']])
-    
     response = generation_chain.invoke({
         "input": state['input'],
-        "context": context,
+        "context": context_str,
         "chat_history": state['chat_history']
     })
     
